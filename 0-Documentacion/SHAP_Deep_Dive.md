@@ -12,6 +12,7 @@ Los valores de Shapley reparten de forma “justa” la contribución de cada va
 
 ## Cómputo y lectura práctica.
 En términos operativos, SHAP calcula, para cada observación, un vector de contribuciones cuyo agregado reproduce la predicción. En lineales, la intuición se ancla en diferencias respecto al valor esperado y puede visualizarse como una versión “centrada” de los PDPs; en árboles, TreeSHAP permite escalar a producción preservando exactitud. 
+
 <img src="../assets/Ecuacion_Shap.png" alt="Image Alt Text" width="500"/>
 
 # 3) Conclusión
