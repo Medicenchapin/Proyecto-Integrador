@@ -1,0 +1,23 @@
+,mean_|shap|
+plan_postpaid,0.26662803
+contacts,0.18516527
+arpu_90_days,0.12332995
+start_using_months,0.116713285
+client_age,0.10799722
+state_name,0.10570939
+previous_calls,0.10553498
+average_performance,0.085181765
+high_frequency_contacts,0.08289344
+previous_classification_NEW CLIENT,0.0682265
+music_gb,0.065804094
+network_age_years,0.058391307
+minutes_in,0.046623766
+sn_banking,0.04628516
+digital_index_mean,0.04046027
+apps_days,0.040403217
+connected_days,0.035966244
+banking,0.033581506
+validity_average,0.026128542
+charged_days,0.023105372
+previous_classification_NOT INTERESTED,0.0
+previous_classification_NOT EFFECTIVE,0.0
