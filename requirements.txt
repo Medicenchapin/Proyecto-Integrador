@@ -1,0 +1,12 @@
+category_encoders
+shap
+xgboost
+imblearn
+matplotlib
+seaborn
+pandas
+numpy
+scikit-learn
+plotly
+gdown
+python-dotenv
