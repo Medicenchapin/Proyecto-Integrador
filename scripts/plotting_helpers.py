@@ -2,8 +2,11 @@ from scipy.stats import skew, kurtosis
 import pandas as pd
 import math
 import matplotlib.pyplot as plt
+from scipy.stats import probplot
 import seaborn as sns
 import warnings
+from sklearn.preprocessing import QuantileTransformer, PowerTransformer
+import numpy as np
 
 def plot_histogram(df, numerical_cols, bins=30):
     n = len(numerical_cols)
@@ -181,3 +184,185 @@ def correlation_barplot(corr):
     plt.xlabel("Correlation coefficient")
     plt.ylabel("Feature")
     plt.show()
+    
+    
+def plot_hist_prob(df, col_name, plot_transforms=True):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=FutureWarning)
+        if plot_transforms==False:
+            fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(18,3))
+            fig.suptitle(col_name, fontsize=18)
+            # Histogram & Density
+            sns.histplot(data=df, x=col_name, ax=axes[0], kde=True)
+            axes[0].set_title('Histogram')
+
+            # Probability Plot
+            probplot(df[col_name], plot=axes[1])
+            #axes[1].set_title(axes[1].get_title()+' Quantile Transformed data')
+
+            # boxplot
+            sns.boxplot(data=df, x=col_name, ax=axes[2], showfliers = True)
+            axes[2].set_title('Boxplot')
+
+            plt.tight_layout()
+        else:
+            fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(18,9))
+            fig.suptitle(col_name, fontsize=18)
+
+            # Histogram & Density
+            sns.histplot(data=df, x=col_name, ax=axes[0,0], kde=True)
+            axes[0,0].set_title('Histogram')
+
+            # Probability Plot
+            probplot(df[col_name], plot=axes[0,1])
+
+            # boxplot
+            sns.boxplot(data=df, x=col_name, ax=axes[0,2], showfliers = True)
+            axes[0,2].set_title('Boxplot')
+
+            df_tmp = df.copy()
+            # -------------------------------
+            # QUANTILE
+            # -------------------------------
+            col_data = df_tmp[col_name].dropna().values.reshape(-1, 1)
+
+            q_transformer = QuantileTransformer(output_distribution='normal')
+            q_transformer.fit(df_tmp[[col_name]])
+
+            df_tmp['q_'+col_name] = q_transformer.transform(df_tmp[[col_name]])
+
+            # Histogram & Density
+            sns.histplot(data=df_tmp, x='q_'+col_name, ax=axes[1,0], kde=True)
+            axes[1,0].set_title('Histogram')
+
+            # Probability Plot
+            probplot(df_tmp['q_'+col_name], plot=axes[1,1])
+
+            # boxplot
+            sns.boxplot(data=df_tmp, x='q_'+col_name, ax=axes[1,2], showfliers = True)
+            axes[1,2].set_title('Boxplot')
+
+            # -------------------------------
+            # YEO JONSHON
+            # -------------------------------
+            
+            yj_transformer = PowerTransformer(method='yeo-johnson')
+            yj_transformer.fit(df_tmp[[col_name]])
+
+            df_tmp['yj_'+col_name] = yj_transformer.transform(df_tmp[[col_name]])
+
+            # Histogram & Density
+            sns.histplot(data=df_tmp, x='yj_'+col_name, ax=axes[2,0], kde=True)
+            axes[2,0].set_title('Histogram')
+
+            # Probability Plot
+            probplot(df_tmp['yj_'+col_name], plot=axes[2,1])
+
+            # boxplot
+            sns.boxplot(data=df_tmp, x='yj_'+col_name, ax=axes[2,2], showfliers = True)
+            axes[2,2].set_title('Boxplot')
+
+
+            plt.tight_layout()
+
+
+def compare_transforms(df, col_name, title=None, sample=None, is_discrete=False, random_state=42):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=FutureWarning)
+        """
+        Compara la distribución original vs log, Quantile y Yeo-Johnson.
+        Maneja ceros/negativos de forma segura y muestra si la variable es apta para log.
+        """
+        s = pd.to_numeric(df[col_name], errors='coerce') \
+                .replace([np.inf, -np.inf], np.nan) \
+                .dropna()
+
+        if sample and len(s) > sample:
+            s = s.sample(sample, random_state=random_state)
+
+        fig, axes = plt.subplots(nrows=4, ncols=3, figsize=(18, 12))
+        fig.suptitle(title or col_name, fontsize=18)
+
+        # -------------------------------
+        # ORIGINAL
+        # -------------------------------
+        sns.histplot(x=s, ax=axes[0,0], kde=not is_discrete, discrete=is_discrete)
+        axes[0,0].set_title('Histogram (Original)')
+
+        probplot(s, dist="norm", plot=axes[0,1])
+        axes[0,1].set_title('Q–Q (Original)')
+
+        sns.boxplot(x=s, ax=axes[0,2], showfliers=True)
+        axes[0,2].set_title('Boxplot (Original)')
+
+        # -------------------------------
+        # LOG (solo si es apta)
+        # -------------------------------
+        log_msg = ""
+        if (s <= 0).any():
+            if (s < 0).any():
+                log_msg = "⚠️ Negatives → Log skipped"
+                s_log = None
+            else:
+                log_msg = "Applied log1p() (zeros detected)"
+                s_log = np.log1p(s)
+        else:
+            log_msg = "Applied log()"
+            s_log = np.log(s)
+
+        if s_log is not None:
+            sns.histplot(x=s_log, ax=axes[1,0], kde=True)
+            axes[1,0].set_title('Histogram (Log)')
+            probplot(s_log, dist="norm", plot=axes[1,1])
+            axes[1,1].set_title('Q–Q (Log)')
+            sns.boxplot(x=s_log, ax=axes[1,2], showfliers=True)
+            axes[1,2].set_title('Boxplot (Log)')
+        else:
+            for j in range(3):
+                axes[1,j].text(0.5, 0.5, log_msg, ha='center', va='center', fontsize=14)
+                axes[1,j].set_axis_off()
+
+        # -------------------------------
+        # QUANTILE
+        # -------------------------------
+        q = QuantileTransformer(
+            output_distribution='normal',
+            n_quantiles=min(1000, s.shape[0]),
+            random_state=random_state
+        )
+        s_q = q.fit_transform(s.values.reshape(-1,1)).ravel()
+
+        sns.histplot(x=s_q, ax=axes[2,0], kde=True)
+        axes[2,0].set_title('Histogram (Quantile→Normal)')
+
+        probplot(s_q, dist="norm", plot=axes[2,1])
+        axes[2,1].set_title('Q–Q (Quantile)')
+
+        sns.boxplot(x=s_q, ax=axes[2,2], showfliers=True)
+        axes[2,2].set_title('Boxplot (Quantile)')
+
+        # -------------------------------
+        # YEO-JOHNSON
+        # -------------------------------
+        yj = PowerTransformer(method='yeo-johnson')
+        if s.nunique() > 1:
+            s_yj = yj.fit_transform(s.values.reshape(-1,1)).ravel()
+        else:
+            s_yj = s.values  # sin cambio
+
+        sns.histplot(x=s_yj, ax=axes[3,0], kde=True)
+        axes[3,0].set_title('Histogram (Yeo–Johnson)')
+
+        probplot(s_yj, dist="norm", plot=axes[3,1])
+        axes[3,1].set_title('Q–Q (Yeo–Johnson)')
+
+        sns.boxplot(x=s_yj, ax=axes[3,2], showfliers=True)
+        axes[3,2].set_title('Boxplot (Yeo–Johnson)')
+
+        fig.tight_layout(rect=[0, 0, 1, 0.96])
+        plt.show()
+
+        # Info resumida
+        print(f"=== {col_name} ===")
+        print(f"Count: {len(s)}, Min: {s.min():.3f}, Max: {s.max():.3f}")
+        print(f"Log status: {log_msg}")
