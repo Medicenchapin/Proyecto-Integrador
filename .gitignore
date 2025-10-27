@@ -209,3 +209,5 @@ __marimo__/
 /.parquet/
 4-other models/shap_full.parquet
 4-other models/shap_global_importance.csv
+5-final_model/shap_full.parquet
+5-final_model/shap_global_importance.csv
