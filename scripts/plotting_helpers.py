@@ -186,84 +186,41 @@ def correlation_barplot(corr):
     plt.show()
     
     
-def plot_hist_prob(df, col_name, plot_transforms=True):
+def plot_hist_prob(df, columns, kde=True):
+    """
+    Plots histogram + probability plot + boxplot for each numeric column in df.
+    
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        DataFrame with numeric features
+    columns : list
+        List of column names to visualize
+    kde : bool
+        Whether to show kernel density in histograms
+    """
+    
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=FutureWarning)
-        if plot_transforms==False:
-            fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(18,3))
-            fig.suptitle(col_name, fontsize=18)
+        for col_name in columns:
+            fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(18, 3))
+            fig.suptitle(col_name, fontsize=16, y=1.05)
+
             # Histogram & Density
-            sns.histplot(data=df, x=col_name, ax=axes[0], kde=True)
+            sns.histplot(df[col_name].dropna(), kde=kde, ax=axes[0])
             axes[0].set_title('Histogram')
+            axes[0].set_xlabel(col_name)
 
-            # Probability Plot
-            probplot(df[col_name], plot=axes[1])
-            #axes[1].set_title(axes[1].get_title()+' Quantile Transformed data')
+            # Probability Plot (Q–Q Plot)
+            probplot(df[col_name].dropna(), plot=axes[1])
+            axes[1].set_title('Probability Plot')
 
-            # boxplot
-            sns.boxplot(data=df, x=col_name, ax=axes[2], showfliers = True)
+            # Boxplot
+            sns.boxplot(x=df[col_name], ax=axes[2], showfliers=True)
             axes[2].set_title('Boxplot')
 
             plt.tight_layout()
-        else:
-            fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(18,9))
-            fig.suptitle(col_name, fontsize=18)
-
-            # Histogram & Density
-            sns.histplot(data=df, x=col_name, ax=axes[0,0], kde=True)
-            axes[0,0].set_title('Histogram')
-
-            # Probability Plot
-            probplot(df[col_name], plot=axes[0,1])
-
-            # boxplot
-            sns.boxplot(data=df, x=col_name, ax=axes[0,2], showfliers = True)
-            axes[0,2].set_title('Boxplot')
-
-            df_tmp = df.copy()
-            # -------------------------------
-            # QUANTILE
-            # -------------------------------
-            col_data = df_tmp[col_name].dropna().values.reshape(-1, 1)
-
-            q_transformer = QuantileTransformer(output_distribution='normal')
-            q_transformer.fit(df_tmp[[col_name]])
-
-            df_tmp['q_'+col_name] = q_transformer.transform(df_tmp[[col_name]])
-
-            # Histogram & Density
-            sns.histplot(data=df_tmp, x='q_'+col_name, ax=axes[1,0], kde=True)
-            axes[1,0].set_title('Histogram')
-
-            # Probability Plot
-            probplot(df_tmp['q_'+col_name], plot=axes[1,1])
-
-            # boxplot
-            sns.boxplot(data=df_tmp, x='q_'+col_name, ax=axes[1,2], showfliers = True)
-            axes[1,2].set_title('Boxplot')
-
-            # -------------------------------
-            # YEO JONSHON
-            # -------------------------------
-            
-            yj_transformer = PowerTransformer(method='yeo-johnson')
-            yj_transformer.fit(df_tmp[[col_name]])
-
-            df_tmp['yj_'+col_name] = yj_transformer.transform(df_tmp[[col_name]])
-
-            # Histogram & Density
-            sns.histplot(data=df_tmp, x='yj_'+col_name, ax=axes[2,0], kde=True)
-            axes[2,0].set_title('Histogram')
-
-            # Probability Plot
-            probplot(df_tmp['yj_'+col_name], plot=axes[2,1])
-
-            # boxplot
-            sns.boxplot(data=df_tmp, x='yj_'+col_name, ax=axes[2,2], showfliers = True)
-            axes[2,2].set_title('Boxplot')
-
-
-            plt.tight_layout()
+            plt.show()
 
 
 def compare_transforms(df, col_name, title=None, sample=None, is_discrete=False, random_state=42):
