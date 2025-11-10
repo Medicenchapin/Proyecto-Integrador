@@ -8,17 +8,16 @@ class Helpers:
         self.df = df
         self.feat_playbook_lang = feat_playbook_lang
         self.top_k = top_k
-        self.features_playbook = None
     
     
     def get_feat_playbook(self):
         # import sys
         # sys.path.append('../')
         if self.feat_playbook_lang == 'ESP':
-            with open("../data/config/feature_playbook_esp.json", "r", encoding="utf-8") as f:
+            with open("../../data/config/feature_playbook_esp.json", "r", encoding="utf-8") as f:
                 return json.load(f)
         else:
-            with open("../data/config/feature_playbook_eng.json", "r", encoding="utf-8") as f:
+            with open("../../data/config/feature_playbook_eng.json", "r", encoding="utf-8") as f:
                 return json.load(f)
 
 
@@ -110,41 +109,41 @@ class Helpers:
 
             Retorna un string listo para pasar como 'system prompt'.
             """
-            summary_df, self.features_playbook = self.top_global_features_from_drivers()
+            summary_df, features_playbook = self.top_global_features_from_drivers()
             
 
-            reglas_default = """
-            Guía de uso:
-            - Estos drivers son los más influyentes a nivel global (calculado con la media del impacto absoluto de SHAP).
-            - En resúmenes por cliente, NO muestres valores numéricos de SHAP; solo la dirección (positivo/negativo) y una interpretación breve.
-            - Usa lenguaje de negocio, conciso y objetivo; evita especulación o información no presente en los datos.
-            - Para variables one-hot, muestra el nombre crudo + categoría (p. ej., previous_classification = NEW_CLIENT).
-            - Ordena siempre por relevancia (|impacto|) de mayor a menor.
-            """.strip()
+            # reglas_default = """
+            # Guía de uso:
+            # - Estos drivers son los más influyentes a nivel global (calculado con la media del impacto absoluto de SHAP).
+            # - En resúmenes por cliente, NO muestres valores numéricos de SHAP; solo la dirección (positivo/negativo) y una interpretación breve.
+            # - Usa lenguaje de negocio, conciso y objetivo; evita especulación o información no presente en los datos.
+            # - Para variables one-hot, muestra el nombre crudo + categoría (p. ej., previous_classification = NEW_CLIENT).
+            # - Ordena siempre por relevancia (|impacto|) de mayor a menor.
+            # """.strip()
 
-            if reglas_extra:
-                reglas_block = reglas_default + "\n\nReglas adicionales:\n" + reglas_extra.strip()
-            else:
-                reglas_block = reglas_default
+            # if reglas_extra:
+            #     reglas_block = reglas_default + "\n\nReglas adicionales:\n" + reglas_extra.strip()
+            # else:
+            #     reglas_block = reglas_default
 
             system_prompt = f"""
             Eres un asistente analítico para una empresa de telecomunicaciones en GUATEMALA. Tu función es ayudar a interpretar los principales drivers (valores SHAP) del modelo a nivel global y por cliente, en términos de negocio.
 
             {titulo}
             Estas son las variables globalmente más influyentes (TOP {top_n}) y su significado de negocio:
-            {self.features_playbook}
+            {features_playbook}
 
             Definición breve:
             - SHAP indica la contribución de cada variable a la predicción del modelo para un caso específico.
             - Signo positivo: aumenta la probabilidad del resultado deseado (apoya contacto).
             - Signo negativo: disminuye la probabilidad (sugiere cautela o revisión previa).
 
-            {reglas_block}
+            
             """.strip()
 
             return system_prompt
         
-    def label_magnitude(shap_values):
+    def label_magnitude(self, shap_values):
         """
         Etiqueta magnitud relativa dentro del cliente usando percentiles.
         Retorna lista de etiquetas ['fuerte'|'moderada'|'débil'] en el mismo orden.
@@ -163,6 +162,15 @@ class Helpers:
             else:
                 labels.append('débil')
         return labels
+    
+    def _convert_numpy(self, obj):
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        elif isinstance(obj, (np.floating,)):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        raise TypeError(f"Tipo no serializable: {type(obj)}")
 
     def build_customer_prompt_with_shap(
         self,
@@ -206,52 +214,59 @@ class Helpers:
                 return x
             
         # 3) magnitudes
-        # shap_value=[d.get('impact', 0.0) for d in top_drivers]
-        # magnitudes = self.label_magnitude(shap_value)
+        shap_value=[d.get('impact', 0.0) for d in top_drivers]
+        magnitudes = self.label_magnitude(shap_value)
 
         drivers_payload = []
-        for d in top_drivers:
-            feat = d.get("feature")
+        for d, mag in zip(top_drivers, magnitudes):
+            # feat = d.get("feature")
             raw_feat = d.get("raw_feature", None)
-            ohe_cat = d.get("ohe_category", None)
-            raw_val = d.get("raw_value", None)
-            val = d.get("value", None)              # transformado
+            # print(feat)
+            # ohe_cat = d.get("ohe_category", None)
+            raw_val = row.get(raw_feat, None)
+            # val = d.get("value", None)              # transformado
             imp = d.get("impact", None)             # SHAP
 
-            display = None
-            if ohe_cat and raw_feat:
-                display = f"{raw_feat} = {ohe_cat}"
-            elif raw_feat:
-                display = raw_feat
-            else:
-                display = feat
+            # display = None
+            # if ohe_cat and raw_feat:
+            #     display = f"{raw_feat} = {ohe_cat}"
+            # elif raw_feat:
+            #     display = raw_feat
+            # else:
+            #     display = feat
 
-            desc = self.get_feat_playbook().get(display, self.get_feat_playbook().get(feat, "")) if self.get_feat_playbook() else ""
+            desc = self.get_feat_playbook().get(raw_feat, "") if self.get_feat_playbook() else ""
 
             drivers_payload.append({
-                "feature_display": display,
-                "feature": feat,
-                "raw_feature": raw_feat,
-                "ohe_category": ohe_cat,
+                # "feature_display": display,
+                "feature": raw_feat,
+                # "raw_feature": raw_feat,
+                # "ohe_category": ohe_cat,
                 "raw_value": raw_val,
-                "transformed_value": _round(val, 6) if isinstance(val, (int, float)) else val,
+                "transformed_value": _round(raw_val, 6) if isinstance(raw_val, (int, float)) else raw_val,
                 "shap_value": _round(imp, 6) if isinstance(imp, (int, float)) else imp,
                 "direction": "positivo" if (isinstance(imp, (int, float)) and imp > 0) else "negativo",
-                # "magnitude": mag,
-                # "business_hint": desc
+                "magnitude": mag,
+                "business_hint": desc
             })
 
-        drivers_json = json.dumps(drivers_payload, ensure_ascii=False)
+        drivers_json = json.dumps(drivers_payload, default=self._convert_numpy, ensure_ascii=False)
 
         # 3) Arma el prompt
         proba_txt = f"{float(row['proba'])*100:.1f}%" if "proba" in row else "N/D"
         json_clause = (
         f"""
-        Además del listado en viñetas, devuelve a continuación un bloque JSON que sea un ESPEJO EXACTO
-        de los {len(top_drivers)} elementos (mismos campos y valores), con la clave raíz "drivers". 
-        Agrega un atributo al json que sea tu insight y justificalo con las siguientes reglas:
-        1. Usa el sentido común de negocio: combina el valor crudo (raw_value) con la dirección (positivo/negativo).
-        3. No describas el feature. Interpreta qué implica y justificalo. 
+        Devuelve a continuación un bloque JSON que sea un ESPEJO EXACTO
+        de los {len(top_drivers)} elementos (mismos campos y valores), con la clave raíz "drivers", 
+        adjunta un atributo que sea tu interpretación "output".
+        
+        Instrucciones para el "output":
+        - Interpreta cada driver con base en:
+        (a) Dirección del SHAP: positivo = favorece aceptación; negativo = reduce aceptación.
+        (b) Magnitud del SHAP: fuerte / moderada / débil (ya viene etiquetada).
+        (c) Valor crudo del cliente (raw_value) si está disponible.
+        - Incluye el valor crudo (raw_value) para que el agente conozca el dato del cliente.
+        - No describas el feature, interpreta qué implica y justificalo con la magnitud y el valor crudo. 
         """.strip()
         if include_json_mirror else ""
         )
@@ -268,23 +283,13 @@ class Helpers:
         Cada elemento incluye: nombre para mostrar, valor crudo, valor transformado, valor SHAP y una pista de negocio.
         **No inventes ni alteres valores numéricos**: utiliza exactamente los provistos.
 
-        Instrucciones para los drivers del cliente:
-        - Interpreta cada driver con base en:
-        (a) Dirección del SHAP: positivo = favorece aceptación; negativo = reduce aceptación.
-        (b) Magnitud del SHAP: fuerte / moderada / débil (ya viene etiquetada).
-        (c) Valor crudo del cliente (raw_value) si está disponible.
         DRIVERS_JSON:
         {drivers_json}
 
         Instrucciones de salida (en español):
-        1) Devuelve primero un título: "### Resumen SHAP del Cliente".
-        2) Luego, una lista de viñetas (una por driver) con este formato:
-        - <feature_display>: <dirección (positivo/negativo)>. SHAP=<shap_value>. Crudo=<raw_value>. Transformado=<transformed_value>. Insight=<una frase corta y realista, basada en "business_hint" si está disponible>.
-        * Usa exactamente los valores provistos para SHAP, Crudo y Transformado (no los redondees de nuevo).
         {json_clause}
 
         Políticas:
-        - No muestres información personal no provista.
         - No inventes métricas ni valores.
         - Mantén el tono profesional y conciso.
         """.strip()
