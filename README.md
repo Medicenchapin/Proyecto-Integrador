@@ -59,3 +59,49 @@ Implementar un sistema de recomendación **explicable** que permita a los agente
 ## 11) Contacto
 - **Sponsor de negocio:** Martin Luis Harold Guzmán  
 - **Equipo académico:** Equipo 25 — MNA, Dra. Grettel Barceló
+
+---
+
+## FastAPI + Ollama Serving Layer
+
+El directorio `api/` contiene un microservicio FastAPI que expone el **modelo XGBoost** con explicaciones (`pred_contribs`) y genera el speech comercial con un **LLM local vía Ollama**.
+
+### 1. Preparar el modelo XGB
+1. Desde el notebook `5-final_model/Avance5_Equipo25.ipynb` exporta el booster entrenado:
+   ```python
+   booster = final_model.get_booster()
+   booster.save_model("models/xgb_sales.json")
+   ```
+2. Ajusta la variable `XGB_MODEL_PATH` si decides guardar el archivo en otra ruta.
+
+### 2. Dependencias
+```
+pip install -r api/requirements.txt
+```
+Además, instala y levanta Ollama con el modelo deseado (ej. `ollama pull llama3.1`).
+
+### 3. Variables de entorno clave
+```
+XGB_MODEL_PATH=models/xgb_sales.json
+OLLAMA_MODEL=llama3.1
+OLLAMA_BASE_URL=http://localhost:11434/api/generate
+TOP_K_FEATURES=3
+```
+
+### 4. Ejecutar la API
+```
+uvicorn api.main:app --reload
+```
+
+### 5. Endpoints
+- `GET /health`: verificación básica.
+- `POST /predict`: ingiere las 22 features ya transformadas (target encoding/one-hot) y devuelve probabilidad + top drivers.
+- `POST /pitch`: usa el mismo payload y construye un script con el LLM de Ollama.
+
+Ejemplo mínimo:
+```bash
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d @sample_request.json
+```
+Consulta `api/schemas.py` para el nombre exacto de cada campo (ej. `previous_classification_new_client`).
