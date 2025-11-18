@@ -93,6 +93,17 @@ TOP_K_FEATURES=3
 uvicorn api.main:app --reload
 ```
 
+#### ¿Prefieres contenedor?
+```
+docker build -t tigo-sales-api .
+docker run -p 8000:8000 \
+  -e XGB_MODEL_PATH=/app/models/xgb_sales.json \
+  -v $(pwd)/models:/app/models \
+  tigo-sales-api
+```
+> Monta `models/` con el archivo `xgb_sales.json` exportado y asegúrate de que
+> Ollama esté accesible (por defecto `http://host.docker.internal:11434`) para que el contenedor pueda invocar al LLM.
+
 ### 5. Endpoints
 - `GET /health`: verificación básica.
 - `POST /predict`: ingiere las 22 features ya transformadas (target encoding/one-hot) y devuelve probabilidad + top drivers.
